@@ -281,8 +281,7 @@ namespace newbot
             {
                 value = 180;
             }
-            //port1.WriteLine("" + PWMNumber);
-            //port1.WriteLine("" + value);
+            port1.writeLine(PWMNumber + "|" + value);
         }
         public int get()
         {

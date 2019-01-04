@@ -15,7 +15,21 @@ namespace newbot
         Decoder myDecoder2;
         Spark mySpark1;
         Spark mySpark2;
+        Spark mySpark3;
+        Spark mySpark4;
+        double lasty = 0;
+        public bool init = false;
+        double lasty2  = 0;
+        int y = 32767;
+        int y2 = 32767;
         public static void Main(string[] args) { new MainClass(); }
+        public override void robotstart()
+        {
+            mySpark1 = new Spark(0, portname);
+            mySpark2 = new Spark(1, portname);
+            mySpark3 = new Spark(2, portname);
+            mySpark4 = new Spark(3, portname);
+        }
         public override void robotInit()
         {
             Console.WriteLine("robot enabled");
@@ -24,45 +38,23 @@ namespace newbot
         {
             myDecoder1 = new Decoder(this.data, 0);
             myDecoder2 = new Decoder(this.data, 1);
-            mySpark1 = new Spark(0);
-            mySpark2 = new Spark(1);
-            bool printleft = false;
-            bool printright = false;
-            if (myDecoder1.getRawButtons(3))
-            {
-                printleft = true;
+            if(myDecoder1.getY() != lasty) {
+                mySpark1.set(myDecoder1.getY());
+                mySpark2.set(myDecoder1.getY());
+                lasty = myDecoder1.getY();
             }
-            else if (myDecoder1.getRawButtons(4))
-            {
-                printleft = false;
+            if(myDecoder3.getY() != lasty2) {
+                mySpark3.set(myDecoder2.getY());
+                mySpark4.set(myDecoder2.getY());
+                lasty2 = myDecoder2.getY();
             }
-            if (myDecoder2.getRawButtons(3))
-            {
-                printright = true;
-            }
-            else if (myDecoder2.getRawButtons(4))
-            {
-                printright = false;
-            }
-            if (printleft)
-            {
-                Console.WriteLine(myDecoder1.getY());
-            }
-            if (printright)
-            {
-                Console.WriteLine(myDecoder2.getY());
-            }
-            mySpark1.set(myDecoder1.getY());
-            mySpark2.set(myDecoder2.getY());
-            if (myDecoder2.getRawButtons(0))
-            {
-                Console.WriteLine("Trigger Pressed");
-            }
-            if (myDecoder2.getRawButtons(1))
-            {
-                Console.WriteLine("button 1 pressed");
-            }
-
+            //Console.WriteLine("teleop periodic");
+        }
+        public override void robotDisabled()
+        {
+                mySpark1.set(0);
+                mySpark2.set(0);
+            Console.WriteLine("robot disabled");
         }
     }
     public class Decoder
@@ -237,51 +229,55 @@ namespace newbot
     }
     public class Spark
     {
-        private String portname;
         private const int baudrate = 9600;
         public int PWMNumber;
-        private String[] portnames;
+        private bool enabled = true;
+        public String portname;
         private SerialPort port1;
-        public Spark(int number)
+        public Spark(int number, String port)
         {
             PWMNumber = number;
-            if (SerialPort.GetPortNames().Count() > 0)
-            {
-                if (SerialPort.GetPortNames().Count() == 1)
-                {
-                    foreach (String p in SerialPort.GetPortNames())
-                    {
-                        portname = p;
-                        setPorts();
-                    }
-                }
-                else
-                {
-                    /*portnames = SerialPort.GetPortNames();
-                    foreach (String p in portnames)
-                    {
-                        Console.WriteLine(p);
-                        portname = Console.ReadLine();
-                        setPorts();
-                    }*/
-                    setPorts();
-                }
-            }
+            port1 = new SerialPort(port, baudrate);
+            port1.Open();
+            port1.DataReceived += new SerialDataReceivedEventHandler(port_DataReceived);
         }
-        private void setPorts()
+        public void close() {
+            port1.Close();
+            port1 = null;
+        }
+        public void port_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            port1 = new SerialPort(portname, baudrate);
+            Console.WriteLine("testing something");
+            Console.Write(port1.ReadExisting());
         }
         public void set(double value)
         {
-            value += 1;
-            value /= 2;
-            value *= 190;
-            if (value > 180)
+            if (enabled)
             {
-                value = 180;
+                value *= 10;
+                value = Math.Pow(value, 3);
+                value = (value / (1000 / 95));
+                value += 95;
+                /*if (value > 180)
+                {
+                    value = 180;
+                }*/
+                port1.WriteLine(PWMNumber + "|" + value);
+                Console.WriteLine(port1.ReadLine());
             }
-            port1.writeLine(PWMNumber + "|" + value);
+        }
+        public void setEnabled(bool state) {
+            if (state) {
+                port1.WriteLine("e|95");
+                enabled = true;
+            }
+            else {
+                port1.WriteLine("d|95");
+                enabled = false;
+            }
+        }
+        public bool isEnabled() {
+            return enabled;
         }
         public int get()
         {
@@ -293,6 +289,50 @@ namespace newbot
         public byte[] data = new byte[16];
         private const int listenPort = 36361;
         private const int TCPPort = 36362;
+        private class board{
+            private String portname;
+            private String[] portnames;
+            private SerialPort port;
+            public board() {
+                if (SerialPort.GetPortNames().Count() > 0)
+                {
+                    if (SerialPort.GetPortNames().Count() == 1)
+                    {
+                        foreach (String p in SerialPort.GetPortNames())
+                        {
+                            portname = p;
+                            setPort();
+                        }
+                    }
+                    else
+                    {
+                        portnames = SerialPort.GetPortNames();
+                        foreach (String p in portnames)
+                        {
+                            Console.WriteLine(p);
+                        }
+                        portname = Console.ReadLine();
+                        setPort();
+                    }
+                }
+            }
+            public String getPortName() {
+                return portname;
+            }
+            public void close() {
+                port.WriteLine("d|95");
+            }
+            public void setPort() {
+                port = new SerialPort(portname, 9600);
+                port.Open();
+            }
+            public void open() {
+                port.WriteLine("e|95");
+            }
+        }
+        public virtual void robotstart() {
+            
+        }
         public void TCPServer()
         {
             byte[] bytes = new Byte[1024];
@@ -331,7 +371,7 @@ namespace newbot
                         int bytesRec = handler.Receive(bytes);
                         connection = true;
                         mydata = Encoding.ASCII.GetString(bytes, 0, bytesRec);
-                        Console.WriteLine("Text received : {0}", mydata);
+                        //Console.WriteLine("Text received : {0}", mydata);
                         byte[] msg = Encoding.ASCII.GetBytes(mydata);
 
                         handler.Send(msg);
@@ -363,7 +403,8 @@ namespace newbot
                         }
                         Thread.Sleep(200);
                     }
-
+                    robotDisabled();
+                    autonomousDisabled();
                     Console.WriteLine("connection closed");
                     // Echo the data back to the client.  
                     handler.Shutdown(SocketShutdown.Both);
@@ -380,11 +421,15 @@ namespace newbot
             Console.Read();
         }
         public static String mydata = null;
+        public static String portname;
+        private board myboard = new board();
         public IterativeRobot()
         {
             ThreadStart start = new ThreadStart(TCPServer);
             Thread t = new Thread(start);
             t.Start();
+            portname = myboard.getPortName();
+            robotstart();
             int lastheader = 0;
             Console.WriteLine("waiting for connection...");
             UdpClient listener = new UdpClient(listenPort);
@@ -398,18 +443,23 @@ namespace newbot
                     int header = (int)data[0];
                     if (header != lastheader && (header == 5 || header == 3))
                     {
+                        //myboard.open();
                         robotInit();
                     }
                     else if (header != lastheader && (header == 4 || header == 6))
                     {
+                        Console.WriteLine("robot inactive");
+                       // myboard.close();
                         robotDisabled();
                     }
                     else if (header != lastheader && (header == 1))
                     {
+                        //myboard.open();
                         autonomousInit();
                     }
                     else if (header != lastheader && (header == 2))
                     {
+                        //myboard.close();
                         autonomousDisabled();
                     }
                     else if (header == lastheader && header == 1)
@@ -439,10 +489,6 @@ namespace newbot
         }
         public virtual void robotDisabled()
         {
-            new Spark(0).set(0);
-            new Spark(1).set(0);
-            new Spark(2).set(0);
-            new Spark(3).set(0);
             Console.WriteLine("robot disabled");
         }
         public virtual void autonomousPeriodic()
@@ -451,10 +497,6 @@ namespace newbot
         }
         public virtual void autonomousDisabled()
         {
-            new Spark(0).set(0);
-            new Spark(1).set(0);
-            new Spark(2).set(0);
-            new Spark(3).set(0);
             Console.WriteLine("autonomous ended");
         }
         public virtual void robotInit()
